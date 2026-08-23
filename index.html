@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAND &amp; SIGNAL — Interactive Camera Art</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; min-height:100%; background:#010409; font-family:'Segoe UI',system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:32px 16px; }
+  .wrap { width:100%; max-width:960px; text-align:center; }
+  h1 { color:#d9f3ff; font-weight:200; letter-spacing:.42em; font-size:clamp(24px,4vw,44px);
+    text-shadow:0 0 34px rgba(0,180,216,.45); margin-bottom:10px; }
+  .sub { color:#5d8096; letter-spacing:.22em; font-size:11px; margin-bottom:44px; }
+  .cards { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; }
+  a.card { flex:1 1 320px; max-width:420px; text-decoration:none; padding:40px 28px; border-radius:18px;
+    border:1px solid rgba(0,180,216,.25); background:linear-gradient(160deg,#04101c 0%,#010409 100%);
+    transition:all .25s ease; display:block; text-align:left; }
+  a.card:hover { transform:translateY(-6px); box-shadow:0 20px 60px rgba(0,180,216,.22); border-color:rgba(0,220,255,.6); }
+  a.card.gold { border-color:rgba(232,163,61,.3); background:linear-gradient(160deg,#201509 0%,#0e0a05 100%); }
+  a.card.gold:hover { box-shadow:0 20px 60px rgba(232,163,61,.22); border-color:rgba(255,196,110,.65); }
+  .glyph { font-size:38px; margin-bottom:16px; }
+  .card.blue .glyph { color:#00c3e8; text-shadow:0 0 22px rgba(0,195,232,.8); }
+  .card.gold .glyph { color:#e8a33d; text-shadow:0 0 22px rgba(232,163,61,.8); }
+  a.card h2 { font-weight:300; letter-spacing:.28em; font-size:19px; margin-bottom:12px; }
+  .card.blue h2 { color:#bfeaff; } .card.gold h2 { color:#ffe4b8; }
+  a.card p { color:#7d95a6; line-height:1.75; font-size:13px; }
+  .card.gold p { color:#a08b6a; }
+  .tag { display:inline-block; margin-top:18px; padding:6px 14px; border-radius:14px; font-size:10px;
+    letter-spacing:.2em; }
+  .card.blue .tag { color:#00c3e8; border:1px solid rgba(0,195,232,.4); }
+  .card.gold .tag { color:#e8a33d; border:1px solid rgba(232,163,61,.4); }
+  footer { margin-top:48px; color:#3d5568; font-size:10.5px; letter-spacing:.18em; line-height:2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SAND &amp; SIGNAL</h1>
+  <div class="sub">TWO INTERACTIVE CAMERA MEDITATIONS · YOUR WEBCAM BECOMES THE BRUSH</div>
+
+  <div class="cards">
+    <a class="card gold" href="mandala.html">
+      <div class="glyph">&#9788;</div>
+      <h2>SAND MANDALA</h2>
+      <p>A sacred pattern draws itself grain by grain, forever.
+         AI recognizes your hand — your fingertips become the wind
+         that sweeps the sand away.</p>
+      <span class="tag">HAND TRACKING &middot; 5 DESIGNS</span>
+    </a>
+
+    <a class="card blue" href="ghost.html">
+      <div class="glyph">&#9678;</div>
+      <h2>ABYSSAL ASCII GHOST</h2>
+      <p>You dissolve into the character stream.
+         Your form surfaces from the deep in glowing glyphs —
+         movement sets the code on fire.</p>
+      <span class="tag">MOTION REACTIVE &middot; NO AI NEEDED</span>
+    </a>
+  </div>
+
+  <footer>CAMERA FEED NEVER LEAVES YOUR DEVICE &middot; ALL PROCESSING IS LOCAL<br>ALLOW CAMERA ACCESS WHEN PROMPTED</footer>
+</div>
+</body>
+</html>
