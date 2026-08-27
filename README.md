@@ -9,14 +9,15 @@ Your webcam becomes the brush — nothing is uploaded, all processing happens lo
 
 ## About
 
-You dissolve into the character stream. Your live form surfaces from the deep as glowing
-glyphs rendered in a **green and blue** palette.
+AI maps your **entire body** into a living skeleton of glowing glyphs.
 
-- Your shape is drawn from the camera feed as a matrix of ASCII characters.
-- Body glyphs and drips randomly mix between electric green and abyssal blue every frame.
-- **Movement sets the code on fire:** fast motion spawns `@` bursts and dripping characters.
-- Click to send ripples through the depths.
-- Pure frame-difference motion detection — no AI models, no dependencies.
+- **Body pose detection (AI):** MediaPipe **BlazePose** (33 full-body keypoints)
+  traces your bones — shoulders, arms, hands, spine, hips, legs, feet, and face —
+  as a wireframe of ASCII characters.
+- Glyphs along each bone randomly mix **electric green** (`#00e676` / `#76ff03`)
+  and **abyssal blue** (`#00b0ff` / `#3d5afe`).
+- **Movement sets the code on fire:** fast-moving joints spawn dripping `@` embers.
+- Falls back to MoveNet if BlazePose fails to load.
 
 | Key | Action |
 |-----|--------|
@@ -35,7 +36,8 @@ and allow camera access.
 
 ## Tech Notes
 
-- Single self-contained HTML file, zero dependencies.
+- Single self-contained HTML file.
+- **AI models:** TensorFlow.js + `@tensorflow-models/pose-detection`
+  (MediaPipe BlazePose, lite) loaded from CDN on first run.
 - Canvas 2D rendering at ~60 FPS.
 - Mirrored video mapping with cover-fit cropping.
-- 96×72 luminance sampler + 64×48 frame-difference motion grid for the ghost.

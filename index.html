@@ -17,7 +17,7 @@
   #overlay.hidden { opacity:0; pointer-events:none; }
   #overlay h1 { font-size:clamp(26px,4.4vw,52px); letter-spacing:.42em; font-weight:200; color:#d6ffe8;
     text-shadow:0 0 34px rgba(0,230,118,.45); }
-  #overlay p { color:#6fa68a; max-width:620px; line-height:1.9; font-size:14px; letter-spacing:.06em; }
+  #overlay p { color:#6fa68a; max-width:640px; line-height:1.9; font-size:14px; letter-spacing:.06em; }
   #startBtn { margin-top:8px; padding:16px 54px; font-size:14px; letter-spacing:.32em; cursor:pointer; color:#c8ffe1;
     background:rgba(0,230,118,.06); border:1px solid rgba(0,230,118,.45); border-radius:40px; transition:all .25s; }
   #startBtn:hover { background:rgba(0,230,118,.18); box-shadow:0 0 44px rgba(0,230,118,.35); transform:scale(1.04); }
@@ -37,10 +37,10 @@
 
 <div id="overlay">
   <h1>ABYSSAL<br>ASCII GHOST</h1>
-  <p>You dissolve into the character stream.<br>
-     Your form surfaces from the deep in glowing glyphs &mdash;<br>
-     movement sets the code on fire.<br><br>
-     Click to send ripples through the depths.</p>
+  <p>AI maps your <b>entire body</b> &mdash; bones and all &mdash;<br>
+     into a living skeleton of glowing glyphs.<br>
+     Green and blue code traces your limbs as you move.<br><br>
+     Move to set the character stream on fire.</p>
   <button id="startBtn">DESCEND</button>
 </div>
 
@@ -48,13 +48,15 @@
 
 <div id="hud">
   <div id="modebar"></div>
-  <div id="hint">YOUR FORM SURFACES FROM THE DEEP AS GLYPHS · MOTION SETS THE CODE ON FIRE · C CLEAR · F FULLSCREEN · H HIDE UI</div>
+  <div id="hint">AI TRACKS YOUR BODY &mdash; ASCII SKELETON IN GREEN + BLUE · MOTION IGNITES THE CODE · C CLEAR · F FULLSCREEN · H HIDE UI</div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
 
 <script>
 'use strict';
 const TAU = Math.PI * 2;
-const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
 const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -69,8 +71,11 @@ let time = 0, lastT = performance.now();
 const video = document.createElement('video');
 video.playsInline = true; video.muted = true; video.autoplay = true;
 
-function srcW() { return camOK ? (video.videoWidth || 640) : 320; }
-function srcH() { return camOK ? (video.videoHeight || 480) : 180; }
+const PALS = {
+  GREEN: '#00e676', BLUE: '#00b0ff', GREENG: '#76ff03', BLUEG: '#3d5afe', DEEP: '#00a86b', TEAL: '#18ffff'
+};
+const GLYPHS = ' +*#%@&'; 
+function ghostGlyph(i) { return GLYPHS[(i * 7) % GLYPHS.length]; }
 
 let cov = { dx: 0, dy: 0, dw: 1, dh: 1 };
 function computeCov() {
@@ -78,43 +83,20 @@ function computeCov() {
   if (ia > ca) { cov.dh = H; cov.dw = H * ia; } else { cov.dw = W; cov.dh = W / ia; }
   cov.dx = (W - cov.dw) / 2; cov.dy = (H - cov.dh) / 2;
 }
-function screenToVid(sx, sy) {
-  return { x: ((W - sx) - cov.dx) / cov.dw * srcW(), y: (sy - cov.dy) / cov.dh * srcH() };
+function vidToScreen(vx, vy) {
+  return { x: W - (cov.dx + vx / srcW() * cov.dw), y: cov.dy + vy / srcH() * cov.dh };
 }
-
-const plasma = document.createElement('canvas');
-plasma.width = 320; plasma.height = 180;
-const plCtx = plasma.getContext('2d');
-
-const SW = 96, SH = 72;
-const samp = document.createElement('canvas');
-samp.width = SW; samp.height = SH;
-const sampCtx = samp.getContext('2d', { willReadFrequently: true });
-const sampLum = new Float32Array(SW * SH);
+function srcW() { return camOK ? (video.videoWidth || 640) : 640; }
+function srcH() { return camOK ? (video.videoHeight || 640) : 640; }
 
 const PW = 64, PH = 48;
 const proc = document.createElement('canvas');
 proc.width = PW; proc.height = PH;
-const procCtx = proc.getContext('2d', { willReadFrequently: true });
+const procCtx = proc.getContext('2d');
 const prevLum = new Float32Array(PW * PH);
 const mot = new Float32Array(PW * PH);
-let energy = 0;
-
-function animatePlasma() {
-  const w = plasma.width, h = plasma.height;
-  plCtx.fillStyle = '#04101c'; plCtx.fillRect(0, 0, w, h);
-  const cols = ['#0077b6', '#00b4d8', '#90e0ef', '#023e8a'];
-  for (let i = 0; i < 4; i++) {
-    const x = w / 2 + Math.sin(time * (0.5 + i * 0.17) + i * 2) * w * 0.33;
-    const y = h / 2 + Math.cos(time * (0.4 + i * 0.21) + i) * h * 0.33;
-    const g = plCtx.createRadialGradient(x, y, 0, x, y, 100);
-    g.addColorStop(0, cols[i]); g.addColorStop(1, 'transparent');
-    plCtx.fillStyle = g; plCtx.fillRect(0, 0, w, h);
-  }
-}
 
 function updateVision() {
-  animatePlasma();
   if (camOK && video.videoWidth) {
     procCtx.drawImage(video, 0, 0, PW, PH);
     const d = procCtx.getImageData(0, 0, PW, PH).data;
@@ -128,87 +110,159 @@ function updateVision() {
       mot[i] = Math.max(m, mot[i] * 0.86);
       sum += mot[i];
     }
-    energy = sum / (PW * PH);
-  } else {
-    let sum = 0;
-    for (let i = 0; i < PW * PH; i++) { mot[i] *= 0.9; sum += mot[i]; }
-    energy = sum / (PW * PH);
   }
-  sampCtx.drawImage(camOK ? video : plasma, 0, 0, SW, SH);
-  const sd = sampCtx.getImageData(0, 0, SW, SH).data;
-  for (let i = 0; i < SW * SH; i++) {
-    const j = i * 4;
-    sampLum[i] = (sd[j] * 3 + sd[j + 1] * 4 + sd[j + 2]) / (255 * 8);
+}
+function screenToVid(sx, sy) {
+  return { x: ((W - sx) - cov.dx) / cov.dw * srcW(), y: (sy - cov.dy) / cov.dh * srcH() };
+}
+
+let poseDetector = null, poseOK = false, aiTried = false, aiBusy = false;
+let lastPoses = [];
+let bodyAlpha = 0;
+const prevJoints = {};
+const BONES = [
+  [11, 12], [11, 23], [12, 24], [23, 24],
+  [11, 13], [13, 15], [12, 14], [14, 16],
+  [23, 25], [25, 27], [24, 26], [26, 28],
+  [27, 29], [29, 31], [28, 30], [30, 32],
+  [15, 19], [15, 21], [15, 17], [16, 20], [16, 22], [16, 18],
+  [7, 9], [8, 10], [7, 5], [8, 6],
+  [0, 1], [1, 3], [0, 2], [2, 4]
+];
+
+async function loadAI() {
+  if (aiTried) return;
+  aiTried = true;
+  const stEl = document.getElementById('status');
+  if (typeof tf === 'undefined' || typeof poseDetection === 'undefined') { stEl.textContent = 'AI UNAVAILABLE (OFFLINE)'; return; }
+  try {
+    await tf.setBackend('webgl'); await tf.ready();
+    stEl.textContent = 'LOADING BODY AI (BlazePose)\u2026';
+    poseDetector = await poseDetection.createDetector(
+      poseDetection.SupportedModels.BlazePose,
+      { runtime: 'mediapipe', modelType: 'lite',
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404' });
+    poseOK = true;
+  } catch (e) {
+    try {
+      poseDetector = await poseDetection.createDetector(
+        poseDetection.SupportedModels.MoveNet,
+        { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING });
+      poseOK = true;
+    } catch (e2) { stEl.textContent = 'BODY AI FAILED'; }
   }
 }
 
-function injectBurst(sx, sy, str) {
-  const v = screenToVid(sx, sy);
-  const cx = v.x / srcW() * PW, cy = v.y / srcH() * PH;
-  for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) {
-    const ix = Math.round(cx + x), iy = Math.round(cy + y);
-    if (ix < 0 || iy < 0 || ix >= PW || iy >= PH) continue;
-    mot[iy * PW + ix] = Math.max(mot[iy * PW + ix], (str || 1) * Math.exp(-(x * x + y * y) / 4));
-  }
-}
-
-function vignette() {
-  const vg = ctx.createRadialGradient(W / 2, H / 2, minWH() * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-  vg.addColorStop(0, 'rgba(1,4,9,0)');
-  vg.addColorStop(1, 'rgba(0,2,6,0.8)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+async function runAI() {
+  if (aiBusy || !camOK || !video.videoWidth || !poseDetector) return;
+  aiBusy = true;
+  try {
+    lastPoses = (await poseDetector.estimatePoses(video)) || [];
+  } catch (e) {}
+  aiBusy = false;
 }
 
 const GHOST = {
   drips: [],
-  palC: ['#00e676', '#00b0ff', '#76ff03', '#00a86b', '#3d5afe'],
-  chars: ' .,:;i1tfLCG08@'.split(''),
   init() { this.drips = []; },
   clearMode() { this.drips = []; },
-  render(dt) {
-    ctx.fillStyle = '#010409'; ctx.fillRect(0, 0, W, H);
-    const cell = 19;
-    ctx.font = (cell - 5) + "px Consolas,'Courier New',monospace";
+  drawRain(dt) {
+    ctx.font = "13px Consolas,'Courier New',monospace";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (let y = cell / 2; y < H; y += cell) {
-      for (let x = cell / 2; x < W; x += cell) {
-        const v = screenToVid(x, y);
-        const li = clampN(v.x / srcW() * SW | 0, 0, SW - 1);
-        const ti = clampN(v.y / srcH() * SH | 0, 0, SH - 1);
-        const lum = sampLum[ti * SW + li];
-        const mi = clampN(ti * PH / SH | 0, 0, PH - 1) * PW + clampN(li * PW / SW | 0, 0, PW - 1);
-        const m = mot[mi];
-        if (lum < 0.07 && m < 0.05) continue;
-        if (m > 0.12) {
-          ctx.fillStyle = this.palC[mi % this.palC.length];
-          ctx.globalAlpha = 0.95;
-          ctx.fillText('@', x, y);
-          if (m > 0.5 && Math.random() < 0.02 && this.drips.length < 60)
-            this.drips.push({ x, y, sp: rand(60, 160), life: 1.5, i: Math.random() * this.palC.length | 0 });
-        } else {
-          ctx.globalAlpha = lum * 0.85 + 0.03;
-          ctx.fillStyle = this.palC[(li + ti) % 2 ? 0 : 2];
-          ctx.fillText(this.chars[clampN(lum * this.chars.length | 0, 0, this.chars.length - 1)], x, y);
+    const glyphs = '01@#+~';
+    for (let i = 0; i < 70; i++) {
+      const x = ((i * 97) % 2000) / 2000 * W;
+      const y = ((time * 90 + i * 89) % (H + 50)) - 25;
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = i % 2 ? PALS.BLUE : PALS.DEEP;
+      ctx.fillText(glyphs[(i + time * 3 | 0) % glyphs.length], x, y);
+    }
+    ctx.globalAlpha = 1;
+  },
+  renderPose(dt) {
+    ctx.fillStyle = '#020510'; ctx.fillRect(0, 0, W, H);
+    this.drawRain(dt);
+    const target = lastPoses.length && lastPoses[0].keypoints ? 1 : 0;
+    bodyAlpha += (target - bodyAlpha) * Math.min(1, dt * 4);
+    ctx.font = "15px Consolas,'Courier New',monospace";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const pose of lastPoses) {
+      const kps = pose.keypoints || [];
+      if (!kps.length) continue;
+      const S = kps.map(k => ({ p: vidToScreen(k.x, k.y), s: k.score == null ? 1 : k.score }));
+      for (let bi = 0; bi < BONES.length; bi++) {
+        const a = BONES[bi][0], b = BONES[bi][1];
+        const A = S[a].p, B = S[b].p;
+        if (!A || !B || S[a].s < 0.3 || S[b].s < 0.3) continue;
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const dist = Math.hypot(dx, dy);
+        const n = Math.max(2, dist / 22 | 0);
+        const boneCol = bi % 2 ? PALS.BLUE : PALS.GREEN;
+        const boneColMix = bi % 2 ? PALS.BLUEG : PALS.GREENG;
+        for (let i = 0; i <= n; i++) {
+          const t = i / n;
+          const x = A.x + dx * t, y = A.y + dy * t;
+          const g = (i + t * 3 | 0) % 2 ? boneCol : boneColMix;
+          const al = (0.5 + 0.4 * Math.sin(t * Math.PI)) * bodyAlpha;
+          ctx.globalAlpha = Math.min(S[a].s, S[b].s) * al;
+          ctx.fillStyle = g;
+          ctx.fillText(ghostGlyph(i), x, y);
         }
+      }
+      ctx.font = "26px Consolas,'Courier New',monospace";
+      for (let ji = 0; ji < S.length; ji++) {
+        const J = S[ji];
+        if (J.s < 0.35) continue;
+        const p = J.p;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 30);
+        g.addColorStop(0, 'rgba(' + (ji % 2 ? '0,230,118' : '0,176,255') + ',' + (0.26 * bodyAlpha) + ')');
+        g.addColorStop(1, 'rgba(' + (ji % 2 ? '0,230,118' : '0,176,255') + ',0)');
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, TAU); ctx.fill();
+        ctx.fillStyle = ji % 2 ? '#d6ffe8' : '#c4e4ff';
+        ctx.globalAlpha = bodyAlpha;
+        ctx.fillText('@', p.x, p.y);
+        const pv = prevJoints[ji];
+        if (pv) {
+          const sp = Math.hypot(p.x - pv.x, p.y - pv.y) / Math.max(dt, 0.01);
+          if (sp > 320 && this.drips.length < 90 && Math.random() < 0.4)
+            this.drips.push({ x: p.x, y: p.y, sp: rand(60, 150), life: 1.4, g: ji % 2 ? PALS.GREEN : PALS.BLUE });
+        }
+        prevJoints[ji] = { x: p.x, y: p.y };
+      }
+      ctx.font = "15px Consolas,'Courier New',monospace";
+      if (bodyAlpha < 0.08) {
+        ctx.fillStyle = 'rgba(127,203,164,.85)';
+        ctx.fillText(bodyAlpha < 0.03 ? 'WAITING FOR BODY AI \u2026' : 'STEP INTO THE FRAME \u2014 YOUR BODY BECOMES THE CODE', W / 2, H - 70);
       }
     }
     ctx.globalAlpha = 1;
+    this.renderDrips(dt);
+  },
+  renderDrips(dt) {
+    ctx.font = "15px Consolas,'Courier New',monospace";
     for (let i = this.drips.length - 1; i >= 0; i--) {
       const dp = this.drips[i];
       dp.y += dp.sp * dt; dp.sp += 130 * dt; dp.life -= dt * 0.65;
       if (dp.life <= 0 || dp.y > H) { this.drips.splice(i, 1); continue; }
-      const dpc = this.palC[dp.i % this.palC.length].slice(1).match(/../g).map(h => parseInt(h, 16));
-      ctx.fillStyle = 'rgba(' + dpc.join(',') + ',' + dp.life * 0.8 + ')';
+      ctx.fillStyle = PALS.TEAL;
+      ctx.globalAlpha = dp.life * 0.75;
       ctx.fillText('@', dp.x, dp.y);
+      ctx.globalAlpha = 1;
     }
-    const sweepY = (time * 110) % (H + 120) - 60;
-    const sg = ctx.createLinearGradient(0, sweepY - 50, 0, sweepY + 50);
-    sg.addColorStop(0, 'rgba(0,230,118,0)');
-    sg.addColorStop(0.5, 'rgba(0,230,118,0.06)');
-    sg.addColorStop(1, 'rgba(0,230,118,0)');
-    ctx.fillStyle = sg;
-    ctx.fillRect(0, sweepY - 50, W, 100);
-    vignette();
+  },
+  render(dt) {
+    if (poseOK) this.renderPose(dt);
+    else {
+      ctx.fillStyle = '#020510'; ctx.fillRect(0, 0, W, H);
+      this.drawRain(dt);
+      this.renderDrips(dt);
+      ctx.fillStyle = 'rgba(127,203,164,.8)';
+      ctx.font = '13px "Segoe UI",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('LOADING BODY AI \u2026 STEP INTO THE FRAME', W / 2, H / 2);
+    }
   }
 };
 
@@ -219,7 +273,7 @@ function resizeAll() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   computeCov();
   GHOST.init();
-  ctx.fillStyle = '#010409'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#020510'; ctx.fillRect(0, 0, W, H);
 }
 window.addEventListener('resize', resizeAll);
 
@@ -229,9 +283,6 @@ clrBtn.className = 'mbtn';
 clrBtn.textContent = '\u2715 CLEAR';
 clrBtn.onclick = () => GHOST.clearMode();
 modebar.appendChild(clrBtn);
-
-cv.addEventListener('pointerdown', e => injectBurst(e.clientX, e.clientY, 1));
-cv.addEventListener('pointermove', e => injectBurst(e.clientX, e.clientY, 0.4));
 
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -250,10 +301,11 @@ function loop(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now; time += dt;
   updateVision();
+  runAI();
   GHOST.render(dt);
-  fpsAcc += dt; fpsN++;
+  fpsAcc += dt;fpsN++;
   if (fpsAcc >= 1) {
-    statusEl.textContent = Math.round(fpsN / fpsAcc) + ' FPS \u00B7 CAM ' + (camOK ? 'LIVE' : 'OFF');
+    statusEl.textContent = Math.round(fpsN / fpsAcc) + ' FPS \u00B7 ' + (poseOK ? 'BODY AI LIVE' : 'AI LOADING');
     fpsAcc = 0; fpsN = 0;
   }
   requestAnimationFrame(loop);
@@ -273,6 +325,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
     await video.play();
     camOK = true;
     computeCov();
+    loadAI();
   } catch (err) {}
 });
 </script>
